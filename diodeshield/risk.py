@@ -98,7 +98,7 @@ class RiskEngine:
             "CRITICAL" if is_critical
             else "HIGH" if ip_spoofing
             else "WARNING" if score >= warn_thresh or udp_flood
-            else "INFO" if score >= info_thresh
+            else "MEDIUM" if float(features.get("ttl_anomaly_score", 0.0)) >= 0.5 or score >= info_thresh
             else "LOW"
         )
         reasons = []

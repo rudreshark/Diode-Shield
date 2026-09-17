@@ -81,7 +81,7 @@ class DetectionPipeline:
         # Do not persist routine or weakly anomalous live windows as alerts.
         # WARNING requires persistence; CRITICAL is independently gated by
         # RiskEngine to strong UDP-flood or spoofing evidence.
-        if risk["risk_level"] in {"INFO", "LOW", "MEDIUM"}:
+        if risk["risk_level"] in {"INFO", "LOW"}:
             return None
         if risk["risk_level"] == "WARNING" and not risk["persistent"]:
             return None
