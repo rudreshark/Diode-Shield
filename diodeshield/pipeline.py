@@ -140,10 +140,10 @@ def _category(features: dict[str, Any], protocol: dict[str, Any]) -> str:
         return "PACKET_ALTERATION"
     if features.get("udp_burst_score", 0) >= 0.5:
         return "UDP_FLOOD"
-    if features.get("ttl_anomaly_score", 0) >= 0.5:
-        return "TTL_ANOMALY"
     if protocol.get("protocol_anomaly_score", 0) >= 0.5:
         return "PROTOCOL_ANOMALY"
+    if features.get("ttl_anomaly_score", 0) >= 0.5:
+        return "TTL_ANOMALY"
     if features.get("fan_out", 0) >= 10 and features.get("lateral_movement_score", 0) >= 0.5:
         return "FAN_OUT_ANOMALY"
     if features.get("beacon_score", 0) >= 0.65 and features.get("periodicity_score", 0) >= 2.5:

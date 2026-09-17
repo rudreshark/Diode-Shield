@@ -88,7 +88,10 @@ class RiskEngine:
         is_critical = udp_flood and (score >= crit_thresh or direct_udp_flood)
         warn_thresh = t.get("warning", t.get("high", 0.60))
         info_thresh = t.get("info", t.get("medium", 0.35))
-        persistent = self.persistence.observe(key, score)
+        # Volumetric UDP evidence must not be lost when the learned ensemble
+        # underweights a new source or when a concurrent TTL signal is noisy.
+        persistence_score = max(score, 0.85 if udp_flood else 0.0)
+        persistent = self.persistence.observe(key, persistence_score)
         if is_critical and not persistent:
             is_critical = False
         level = (

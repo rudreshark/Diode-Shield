@@ -316,31 +316,54 @@ def explain_alert(alert_id: str) -> dict[str, Any]:
 
 @app.post("/api/explain-alert", response_model=ExplainAlertResponse)
 def explain_alert_with_ai(request: ExplainAlertRequest) -> ExplainAlertResponse:
-    """Explain one observed alert using Groq without affecting capture."""
+    """Explain one observed alert; use Groq when configured, otherwise local evidence."""
     api_key = os.getenv("GROQ_API_KEY")
+    stored_alert = repository.alert(request.alert_id) or {}
+    supplied = {
+        "alert_id": request.alert_id,
+        "timestamp": stored_alert.get("timestamp"),
+        "risk_level": stored_alert.get("risk_level", "INFO"),
+        "attack_category": request.alert_type,
+        "src_ip": request.src_ip,
+        "dst_ip": request.dst_ip,
+        "src_port": request.src_port,
+        "dst_port": request.dst_port or request.port,
+        "protocol": request.protocol,
+        "risk_score": stored_alert.get("risk_score", 0.0),
+        "confidence": stored_alert.get("confidence", 0.0),
+        "top_features": stored_alert.get("top_features", []),
+        "model_scores": request.model_scores or stored_alert.get("model_scores", {}),
+        "feature_values": request.feature_values or stored_alert.get("feature_values", {}),
+        "reasons": stored_alert.get("reasons", []),
+    }
     if not api_key:
-        raise HTTPException(500, "GROQ_API_KEY is not configured")
+        from diodeshield.explainability_llm import DeterministicLocalExplainer
+        local = DeterministicLocalExplainer().explain(supplied)
+        category = str(supplied["attack_category"]).replace("_", " ").lower()
+        severity_name = str(supplied["risk_level"]).upper().capitalize()
+        impact = (
+            "This pattern can consume bandwidth or service capacity and should be "
+            "validated against the affected host and link."
+            if category == "udp flood"
+            else "The observed pattern may indicate degraded service or an unusual network condition; validate the affected asset."
+        )
+        return ExplainAlertResponse(
+            observed=local["narrative"],
+            why_flagged=f"{local['narrative']} Evidence: {', '.join(str(x) for x in supplied['reasons']) or 'model and feature evidence recorded.'}",
+            context=f"Local evidence-only explanation; external reputation and enrichment were not used. Impact: {impact}",
+            confidence=("High" if float(supplied["confidence"] or 0) >= .75 else "Medium" if float(supplied["confidence"] or 0) >= .45 else "Low"),
+            recommendation="Review the source, destination, packet rate, and affected service; confirm whether the traffic is authorized before taking containment action.",
+            summary_line=f"{severity_name} {category} alert based on captured packet evidence; review impact and authorization.",
+            summary=local["narrative"],
+            severity=severity_name,
+            spoken_text=local["audio_script"],
+            root_cause=f"Observed {category} indicators in the captured traffic.",
+            recommended_action="Validate the traffic source and affected service, then follow the approved incident response procedure.",
+        )
     try:
         from groq import Groq
 
         client = Groq(api_key=api_key)
-        stored_alert = repository.alert(request.alert_id) or {}
-        supplied = {
-            "alert_id": request.alert_id,
-            "timestamp": stored_alert.get("timestamp"),
-            "severity": stored_alert.get("risk_level"),
-            "category": request.alert_type,
-            "source": {"ip": request.src_ip, "port": request.src_port},
-            "destination": {"ip": request.dst_ip, "port": request.dst_port or request.port},
-            "protocol": request.protocol,
-            "packet_summary": request.packet_summary,
-            "model_scores": request.model_scores or stored_alert.get("model_scores", {}),
-            "model_votes": request.model_votes,
-            "feature_values": request.feature_values or stored_alert.get("feature_values", {}),
-            "destination_context": request.destination_context,
-            "historical_context": request.historical_context,
-            "stored_reasons": stored_alert.get("reasons", []),
-        }
         prompt = (
             "You are a defensive network intrusion detection analyst. Analyze only the "
             "JSON evidence supplied below. Do not invent values, thresholds, packets, "
