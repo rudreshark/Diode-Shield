@@ -75,17 +75,11 @@ class RiskEngine:
         ip_spoofing = float(
             features.get("ip_spoofing_score", features.get("identity_anomaly_score", 0.0))
         ) >= 0.50
-        crit_thresh = t.get("critical", 0.85)
-        # A sustained, high-rate UDP burst is direct volumetric evidence. Do
-        # not require the learned ensemble to raise the combined score above
-        # the generic threshold: trained models can underweight rate features
-        # when the destination/port is unfamiliar. The persistence gate below
-        # still prevents a one-window spike from becoming CRITICAL.
-        direct_udp_flood = (
-            float(features.get("packets_per_sec", 0.0)) >= 250.0
-            and float(features.get("bytes_per_sec", 0.0)) >= 250_000.0
-        )
-        is_critical = udp_flood and (score >= crit_thresh or direct_udp_flood)
+        # UDP_FLOOD is direct volumetric evidence. Do not require the learned
+        # ensemble or an extra bandwidth threshold to agree: external sources
+        # and unfamiliar ports can be under-scored by trained models. The
+        # existing persistence gate still prevents a one-window spike.
+        is_critical = udp_flood
         warn_thresh = t.get("warning", t.get("high", 0.60))
         info_thresh = t.get("info", t.get("medium", 0.35))
         # Volumetric UDP evidence must not be lost when the learned ensemble
