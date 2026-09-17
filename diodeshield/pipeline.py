@@ -45,6 +45,11 @@ class DetectionPipeline:
         return alerts
 
     def process_window(self, events: list[TrafficEvent]) -> dict[str, Any] | None:
+        # Sliding windows can legitimately be empty between bursts. Do not
+        # persist placeholder flow rows; telemetry should represent observed
+        # packets only.
+        if not events:
+            return None
         features = extract_features(events, self.baseline)
         latencies: dict[str, float] = {}
         scores: dict[str, float] = {}
