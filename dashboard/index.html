@@ -86,7 +86,52 @@ document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{document.quer
 $("#filterButton").onclick=async()=>{const p=new URLSearchParams();const s=$("#severityFilter").value,c=$("#categoryFilter").value,src=$("#sourceFilter").value;if(s)p.set("severity",s);if(c)p.set("category",c);if(src)p.set("source",src);renderFullAlerts(await api("/api/alerts?limit=100&"+p,[]))};
 $("#captureToggle").onclick=async()=>{const running=$("#captureToggle").textContent.startsWith("Stop");$("#captureToggle").disabled=true;try{const response=await fetch(`${API_BASE}${running?"/api/capture/stop":"/api/capture/start"}`,{method:"POST"});if(!response.ok)throw Error(`capture control failed (${response.status})`);await refresh()}catch(error){$("#captureLabel").textContent=error.message}finally{$("#captureToggle").disabled=false}};
 function reportEscape(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-function generateSecurityReport(sessionData){const capture=sessionData.capture||{},summary=sessionData.summary||{},alerts=sessionData.alerts||[],protocols=(sessionData.flows||[]).reduce((acc,f)=>{const key=f.protocol||"OTHER";acc[key]=(acc[key]||0)+Number(f.bytes||0);return acc},{});const subnets=new Set(alerts.map(a=>String(a.src_ip||"").split(".").slice(0,3).join(".")).filter(Boolean));const rows=alerts.map(a=>`<tr><td>${reportEscape(a.timestamp)}</td><td>${reportEscape(a.src_ip)} → ${reportEscape(a.dst_ip)}</td><td>${reportEscape(a.risk_level)}</td><td>${reportEscape(a.attack_category)}</td><td>${reportEscape((a.reasons||[]).join("; ")||"Review packet evidence")}</td></tr>`).join("")||"<tr><td colspan='5'>No alerts recorded.</td></tr>";const protocolRows=Object.entries(protocols).map(([name,bytes])=>`<tr><td>${reportEscape(name)}</td><td>${Number(bytes).toLocaleString()}</td></tr>`).join("")||"<tr><td colspan='2'>No flow data recorded.</td></tr>";return `<!doctype html><html><head><meta charset="utf-8"><title>DIODESHIELD Technical Security Report</title><style>body{font:14px Arial,sans-serif;color:#0f172a;margin:32px}h1{margin-bottom:4px}h2{border-bottom:2px solid #e2e8f0;padding-bottom:8px;margin-top:30px}.meta,.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.metric{border:1px solid #e2e8f0;padding:14px}.label{display:block;color:#64748b;font-size:11px;text-transform:uppercase;font-weight:bold;margin-bottom:5px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #e2e8f0;padding:9px;text-align:left;vertical-align:top}th{background:#f8fafc}footer{margin-top:42px;border-top:1px solid #e2e8f0;padding-top:18px}@media print{body{margin:18mm}h2{break-after:avoid}.metric,table{break-inside:avoid}tr{break-inside:avoid}button{display:none}}@media(max-width:700px){.meta{grid-template-columns:1fr 1fr}}</style></head><body><h1>DIODESHIELD Technical Security Report</h1><p>Generated ${reportEscape(new Date().toISOString())}</p><div class="meta"><div class="metric"><span class="label">Packets processed</span>${Number(capture.packets_processed||capture.packets_captured||0).toLocaleString()}</div><div class="metric"><span class="label">Active subnets</span>${subnets.size}</div><div class="metric"><span class="label">System status</span>${reportEscape(capture.status||"UNKNOWN")}</div><div class="metric"><span class="label">Bytes captured</span>${Number(capture.bytes_captured||0).toLocaleString()}</div></div><h2>Executive summary</h2><p>Live receive-only monitoring observed ${Number(capture.packets_captured||0).toLocaleString()} packets at ${Number(capture.current_pps||0).toFixed(1)} packets per second. The persisted alert set contains ${alerts.length} detections. This report contains observed metadata only; it does not include generated or simulated traffic.</p><h2>Traffic metrics</h2><table><thead><tr><th>Protocol</th><th>Bytes transferred</th></tr></thead><tbody>${protocolRows}</tbody></table><h2>Anomaly and threat log</h2><table><thead><tr><th>Timestamp</th><th>Endpoints</th><th>Severity</th><th>Type</th><th>Action / evidence</th></tr></thead><tbody>${rows}</tbody></table><footer><h2>Admin sign-off and action checklist</h2><p>☐ Review all High and Critical detections<br>☐ Confirm capture interface and packet-drop rate<br>☐ Validate recommended actions against change-control policy</p><p>Administrator: ____________________ &nbsp; Date: ____________________</p></footer></body></html>`}
+function generateSecurityReport(sessionData){const capture=sessionData.capture||{},summary=sessionData.summary||{},alerts=sessionData.alerts||[],protocols=(sessionData.flows||[]).reduce((acc,f)=>{const key=f.protocol||"OTHER";acc[key]=(acc[key]||0)+Number(f.bytes||0);return acc},{});const subnets=new Set(alerts.map(a=>String(a.src_ip||"").split(".").slice(0,3).join(".")).filter(Boolean));const rows=alerts.map(a=>`<tr><td>${reportEscape(a.timestamp)}</td><td>${reportEscape(a.src_ip)} → ${reportEscape(a.dst_ip)}</td><td>${reportEscape(a.risk_level)}</td><td>${reportEscape(a.attack_category)}</td><td>${reportEscape((a.reasons||[]).join("; ")||"Review packet evidence")}</td></tr>`).join("")||"<tr><td colspan='5'>No alerts recorded.</td></tr>";const protocolRows=Object.entries(protocols).map(([name,bytes])=>`<tr><td>${reportEscape(name)}</td><td>${Number(bytes).toLocaleString()}</td></tr>`).join("")||"<tr><td colspan='2'>No flow data recorded.</td></tr>";return `<!doctype html><html><head><meta charset="utf-8"><title>DIODESHIELD Technical Security Report</title><style>body{font:14px Arial,sans-serif;color:#0f172a;margin:32px}h1{margin-bottom:4px}h2{border-bottom:2px solid #e2e8f0;padding-bottom:8px;margin-top:30px}.meta,.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.metric{border:1px solid #e2e8f0;padding:14px}.label{display:block;color:#64748b;font-size:11px;text-transform:uppercase;font-weight:bold;margin-bottom:5px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #e2e8f0;padding:9px;text-align:left;vertical-align:top}th{background:#f8fafc}footer{margin-top:42px;border-top:1px solid #e2e8f0;padding-top:18px}@media print{body{margin:18mm}h2{break-after:avoid}.metric,table{break-inside:avoid}tr{break-inside:avoid}button{display:none}}@media(max-width:700px){.meta{grid-template-columns:1fr 1fr}}</style>
+<style>
+html{scroll-behavior:smooth}
+body{overflow-x:hidden}
+.topbar{position:sticky;top:0;z-index:10}
+.content{width:100%;padding-left:clamp(16px,3vw,34px);padding-right:clamp(16px,3vw,34px)}
+.card{min-width:0}
+.panel-head{gap:12px;flex-wrap:wrap}
+.panel-title{min-width:0}
+.topbar>div:first-child{min-width:0}
+.topbar h1,.topbar p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top-actions{flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:1100px){
+  .sidebar{width:220px;padding-left:12px;padding-right:12px}
+  .topbar{padding-left:24px;padding-right:24px}
+  .content{padding-top:24px;padding-bottom:24px}
+  .kpi{padding:16px}
+}
+@media(max-width:700px){
+  .sidebar{padding:12px;gap:12px;overflow:hidden}
+  .brand{padding:0 4px}
+  .nav{gap:6px;padding-bottom:2px}
+  .nav button{width:auto;min-width:max-content;padding:9px 11px}
+  .topbar{position:sticky;top:0;padding:14px 16px;align-items:flex-start;flex-direction:column}
+  .topbar h1,.topbar p{white-space:normal}
+  .top-actions{width:100%;justify-content:flex-start}
+  .content{padding:16px 12px}
+  .kpis{gap:10px}
+  .kpi{padding:14px 12px}
+  .metric{font-size:22px}
+  .panel-head,.panel-body{padding-left:14px;padding-right:14px}
+  .diode-map{min-height:0}
+  .toolbar>*{width:100%}
+  .toolbar .button{width:100%}
+  .stream-row{grid-template-columns:58px 54px minmax(150px,1fr);gap:8px;padding-left:14px;padding-right:14px}
+  .stream-row span:last-child{grid-column:3}
+  .detail{grid-template-columns:1fr}
+  table{min-width:680px}
+  .consensus-table{min-width:0}
+}
+@media(max-width:420px){
+  .kpis{grid-template-columns:1fr}
+  .top-actions .badge{font-size:11px;padding:6px 9px}
+  .button,.badge{padding:7px 9px}
+}
+</style></head><body><h1>DIODESHIELD Technical Security Report</h1><p>Generated ${reportEscape(new Date().toISOString())}</p><div class="meta"><div class="metric"><span class="label">Packets processed</span>${Number(capture.packets_processed||capture.packets_captured||0).toLocaleString()}</div><div class="metric"><span class="label">Active subnets</span>${subnets.size}</div><div class="metric"><span class="label">System status</span>${reportEscape(capture.status||"UNKNOWN")}</div><div class="metric"><span class="label">Bytes captured</span>${Number(capture.bytes_captured||0).toLocaleString()}</div></div><h2>Executive summary</h2><p>Live receive-only monitoring observed ${Number(capture.packets_captured||0).toLocaleString()} packets at ${Number(capture.current_pps||0).toFixed(1)} packets per second. The persisted alert set contains ${alerts.length} detections. This report contains observed metadata only; it does not include generated or simulated traffic.</p><h2>Traffic metrics</h2><table><thead><tr><th>Protocol</th><th>Bytes transferred</th></tr></thead><tbody>${protocolRows}</tbody></table><h2>Anomaly and threat log</h2><table><thead><tr><th>Timestamp</th><th>Endpoints</th><th>Severity</th><th>Type</th><th>Action / evidence</th></tr></thead><tbody>${rows}</tbody></table><footer><h2>Admin sign-off and action checklist</h2><p>☐ Review all High and Critical detections<br>☐ Confirm capture interface and packet-drop rate<br>☐ Validate recommended actions against change-control policy</p><p>Administrator: ____________________ &nbsp; Date: ____________________</p></footer></body></html>`}
 async function buildReport(){const [capture,summary,flows]=await Promise.all([api("/api/capture-status",{}),api("/api/dashboard-summary",{}),api("/api/flows?limit=1000",[])]);const html=generateSecurityReport({capture,summary,flows,alerts:state.alerts});$("#reportFrame").srcdoc=html;return html}
 $("#reportButton").onclick=buildReport;$("#printReportButton").onclick=async()=>{const html=await buildReport();const reportWindow=window.open("","_blank");if(!reportWindow){alert("Allow popups to print the report.");return}reportWindow.document.write(html.replace("</body>","<script>window.onload=()=>window.print()<\/script></body>"));reportWindow.document.close()};
 let socket;function connect(){const base=API_BASE?API_BASE.replace(/^http/,"ws"):`${location.protocol==="https:"?"wss":"ws"}://${location.host}`;socket=new WebSocket(`${base}/ws/dashboard`);socket.onopen=()=>$("#updated").textContent="Live stream connected";socket.onmessage=e=>{const m=JSON.parse(e.data);if(m.event_type==="alert")refresh()};socket.onclose=()=>setTimeout(connect,3000)}
