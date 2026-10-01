@@ -187,10 +187,11 @@ def interfaces() -> list[dict[str, Any]]:
 @app.get("/api/capture-status")
 def capture_status() -> dict[str, Any]:
     stats = _capture_stats()
+    health = pipeline.latest_health
     return {
         "enabled": bool(config["system"].get("live_capture", True)),
         "running": stats["status"] == "RUNNING",
-        "mode": stats.get("engine", "scapy"),
+        "mode": stats.get("engine", health.get("mode", "scapy")),
         "interface": stats["interface"],
         "packets_captured": stats["total_packets_received"],
         "packets_processed": stats["total_packets_processed"],
@@ -198,8 +199,12 @@ def capture_status() -> dict[str, Any]:
         "bytes_captured": stats["total_bytes_received"],
         "current_pps": stats["current_pps"],
         "current_bps": stats["current_bps"],
-        "last_capture_time": stats["last_packet_time"],
-        "error": stats["error_message"],
+        "last_capture_time": stats["last_packet_time"] or health.get("last_capture_time"),
+        "remote_packets_captured": health.get("remote_packets_captured", 0),
+        "last_event": health.get("last_event"),
+        "data_source": health.get("data_source"),
+        "visibility": health.get("visibility", "unknown"),
+        "error": stats["error_message"] or health.get("capture_error"),
     }
 
 

@@ -39,6 +39,8 @@ class DetectionPipeline:
     def ingest(self, event: TrafficEvent) -> list[dict[str, Any]]:
         alerts = []
         for window_events in self.window.add(event):
+            if not window_events:
+                continue
             result = self.process_window(window_events)
             if result:
                 alerts.append(result)
@@ -74,13 +76,18 @@ class DetectionPipeline:
         self.repository.save_features(timestamp, events[0].asset_id if events else None, features)
         self.repository.save_model_score(timestamp, result["scores"])
         self.repository.save_flow({"timestamp": timestamp, "src_ip": events[0].src_ip if events else None,
-                                  "dst_ip": events[0].dst_ip if events else None, "protocol": features.get("protocol"),
-                                  "packets": features.get("packets", 0), "bytes": features.get("bytes", 0),
-                                  "anomaly_score": risk["risk_score"], "asset_id": events[0].asset_id if events else None})
+                      "dst_ip": events[0].dst_ip if events else None, "protocol": features.get("protocol"),
+                      "packets": features.get("packets", 0), "bytes": features.get("bytes", 0),
+                      "anomaly_score": risk["risk_score"], "asset_id": events[0].asset_id if events else None,
+                      "src_port": events[0].src_port if events else None,
+                      "dst_port": events[0].dst_port if events else None,
+                      "service": features.get("service", "unknown")})
         self.latest_health.update({"status": "HEALTHY", "last_event": timestamp, "queue_depth": 0,
                                    "model_latency_ms": latencies,
                                    "streaming_compatible": True,
                                    "data_source": events[-1].data_source if events else "unknown"})
+        self.latest_health["packets_captured"] = int(self.latest_health.get("packets_captured", 0)) + len(events)
+        self.latest_health["last_capture_time"] = timestamp
         for event in events:
             self.latest_health["data_source"] = event.data_source
         # Do not persist routine or weakly anomalous live windows as alerts.
